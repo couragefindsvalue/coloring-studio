@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { HexColorPicker } from 'react-colorful';
 import { toPng } from 'html-to-image';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import ColoringCanvas from './ColoringCanvas';
 import { catalog, palette } from './catalog';
+import { supabase } from './supabaseClient';
 
 const extractTags = (name) => {
   let baseName = name.split('=')[0].replace('.svg', '');
@@ -15,22 +17,83 @@ const extractTags = (name) => {
 
 function Home() {
   const categoryKeys = Object.keys(catalog);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [activeCategory, setActiveCategory] = useState(categoryKeys[0] || '');
   const [activeItem, setActiveItem] = useState(null);
   const [color, setColor] = useState('#e63946');
   const [showPicker, setShowPicker] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isCanvasCollapsed, setIsCanvasCollapsed] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(27);
-
   const [selectedPaths, setSelectedPaths] = useState([]);
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [savedCode, setSavedCode] = useState('');
+
+  // 🌟 历史特别色 (上限增加到 10 个)
+  const [customColors, setCustomColors] = useState(() => {
+    const saved = localStorage.getItem('my_custom_colors');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // 🌟 检查浏览器是否支持屏幕拾色器
+  const isEyeDropperSupported = typeof window !== 'undefined' && !!window.EyeDropper;
 
   const canvasRef = useRef(null);
   const gridRef = useRef(null);
+
+  const handleColorSelect = (newColor) => {
+    let finalColor = newColor.toLowerCase();
+    if (finalColor === '#000000') finalColor = '#4a4a4a'; // 纯黑转深灰
+    setColor(finalColor);
+
+    const isDefault = palette.map(p => p.toLowerCase()).includes(finalColor);
+    const isCustom = customColors.map(c => c.toLowerCase()).includes(finalColor);
+
+    if (!isDefault && !isCustom) {
+      setCustomColors(prev => {
+        const updated = [...prev, finalColor];
+        if (updated.length > 10) updated.shift(); // 限制10个
+        localStorage.setItem('my_custom_colors', JSON.stringify(updated));
+        return updated;
+      });
+    }
+  };
+
+  const handleEyeDropper = async () => {
+    if (!isEyeDropperSupported) return alert("Your browser doesn't support the EyeDropper.");
+    try {
+      const eyeDropper = new window.EyeDropper();
+      const result = await eyeDropper.open();
+      handleColorSelect(result.sRGBHex);
+    } catch (e) { console.log(e); }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isModifier = isMac ? e.metaKey : e.ctrlKey;
+      if (isModifier) {
+        if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+          e.preventDefault(); if (canvasRef.current) canvasRef.current.undo();
+        } else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
+          e.preventDefault(); if (canvasRef.current) canvasRef.current.redo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (isFullScreen) document.body.classList.add('is-fullscreen-active');
+    else document.body.classList.remove('is-fullscreen-active');
+    return () => document.body.classList.remove('is-fullscreen-active');
+  }, [isFullScreen]);
 
   const allImages = useMemo(() => {
     let list = [];
@@ -64,19 +127,37 @@ function Home() {
   }, [isSearching, searchTerm, allImages]);
 
   const displayItems = isSearching ? searchResults : (catalog[activeCategory] || []);
-
   const totalPages = Math.ceil(displayItems.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedItems = displayItems.slice(startIndex, startIndex + itemsPerPage);
 
   useEffect(() => {
-    setCurrentPage(1);
-    if (displayItems.length > 0) {
-      setActiveItem(displayItems[0]);
-    } else {
-      setActiveItem(null);
+    if (location.state?.loadedImage) {
+      setActiveItem({ path: location.state.loadedImage, name: 'My Saved Artwork' });
+      setIsFullScreen(true);
+      setIsCanvasCollapsed(false);
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
+
+  useEffect(() => {
+    if (!location.state?.loadedImage) {
+      setCurrentPage(1);
+      if (displayItems.length > 0) setActiveItem(displayItems[0]);
+      else setActiveItem(null);
     }
   }, [searchTerm, activeCategory]);
+
+  const isAllPageSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedPaths.includes(item.path));
+  const handleSelectAll = () => {
+    if (isAllPageSelected) {
+      const pagePaths = paginatedItems.map(item => item.path);
+      setSelectedPaths(prev => prev.filter(p => !pagePaths.includes(p)));
+    } else {
+      const pagePaths = paginatedItems.map(item => item.path);
+      setSelectedPaths(prev => [...new Set([...prev, ...pagePaths])]);
+    }
+  };
 
   useEffect(() => {
     if (!gridRef.current) return;
@@ -93,58 +174,82 @@ function Home() {
 
   const toggleSelection = (e, itemPath) => {
     e.stopPropagation();
-    setSelectedPaths(prev =>
-      prev.includes(itemPath)
-        ? prev.filter(p => p !== itemPath)
-        : [...prev, itemPath]
-    );
+    setSelectedPaths(prev => prev.includes(itemPath) ? prev.filter(p => p !== itemPath) : [...prev, itemPath]);
   };
-
   const clearSelection = () => setSelectedPaths([]);
 
-  // 🌟 新增：保存画作到画廊
   const handleSaveToGallery = () => {
     const canvasElement = document.querySelector('canvas');
     if (!canvasElement) return;
-
-    const dataUrl = canvasElement.toDataURL('image/png');
+    const dataUrl = canvasElement.toDataURL('image/jpeg', 0.8);
     const existingGallery = JSON.parse(localStorage.getItem('my_coloring_gallery') || '[]');
-
-    const newArtwork = {
-      id: Date.now(),
-      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-      image: dataUrl
-    };
-
+    const newArtwork = { id: Date.now(), date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(), image: dataUrl };
     try {
       localStorage.setItem('my_coloring_gallery', JSON.stringify([newArtwork, ...existingGallery]));
-      alert('✅ Artwork saved to Gallery!');
+      alert('✅ Artwork saved to Local Gallery!');
     } catch (e) {
-      alert('❌ Storage is full! Please clear some old artworks in the Gallery.');
+      const goToGallery = window.confirm("❌ Local browser storage is full!\n\nGo to the Gallery now?");
+      if (goToGallery) navigate('/gallery');
     }
+  };
+
+  const generateCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return `${code.slice(0, 3)}-${code.slice(3)}`;
+  };
+
+  const handleSaveToCloud = async () => {
+    const canvasElement = document.querySelector('canvas');
+    if (!canvasElement) return;
+    try {
+      const blob = await new Promise(resolve => canvasElement.toBlob(resolve, 'image/png'));
+      const code = generateCode();
+      const fileName = `${code}.png`;
+      const { error: uploadError } = await supabase.storage.from('artworks').upload(fileName, blob);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('artworks').getPublicUrl(fileName);
+      const { error: dbError } = await supabase.from('cloud_artworks').insert([{ code: code, image_url: publicUrl }]);
+      if (dbError) throw dbError;
+      setSavedCode(code);
+      setShowCodeModal(true);
+    } catch (error) {
+      alert('❌ Failed to save to cloud. Please try again.');
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(savedCode).then(() => alert("✅ Code copied!")).catch(() => alert("❌ Failed."));
+  };
+
+  const handleLoadFromCloud = () => {
+    const input = window.prompt("Enter your 6-character extraction code (e.g. A7B-9X2):");
+    if (!input) return;
+    const cleanCode = input.trim().toUpperCase();
+    const loadImage = async () => {
+      try {
+        const { data, error } = await supabase.from('cloud_artworks').select('image_url').eq('code', cleanCode).single();
+        if (error || !data) throw new Error('Code not found');
+        navigate('/', { state: { loadedImage: data.image_url } });
+      } catch (error) {
+        alert("❌ Invalid code or connection error.");
+      }
+    };
+    loadImage();
   };
 
   const handleBatchDownload = async () => {
     if (selectedPaths.length === 0) return;
     const zip = new JSZip();
-
     for (const path of selectedPaths) {
       try {
         const response = await fetch(path);
-        if (!response.ok) throw new Error(`Failed to fetch ${path}`);
         const svgText = await response.text();
-        const filename = path.split('/').pop();
-        zip.file(filename, svgText);
-      } catch (error) {
-        console.error("Error fetching file:", path, error);
-      }
+        zip.file(path.split('/').pop(), svgText);
+      } catch (error) { console.error(error); }
     }
-
-    zip.generateAsync({ type: 'blob' }).then((content) => {
-      const now = new Date();
-      const timeStr = now.toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '_');
-      saveAs(content, `SVGfiles_${timeStr}.zip`);
-    });
+    zip.generateAsync({ type: 'blob' }).then((content) => saveAs(content, `SVGfiles_${new Date().getTime()}.zip`));
   };
 
   const handlePrintCurrent = () => {
@@ -165,10 +270,7 @@ function Home() {
     printWindow.document.close();
   };
 
-  const handleSelectItem = (item) => {
-    setActiveItem(item);
-    setIsCanvasCollapsed(false);
-  };
+  const handleSelectItem = (item) => { setActiveItem(item); setIsCanvasCollapsed(false); };
 
   const handlePrev = () => {
     if (displayItems.length <= 1) return;
@@ -192,10 +294,9 @@ function Home() {
 
   return (
     <div className={`app-container ${isFullScreen ? 'full-screen' : ''} ${isCanvasCollapsed ? 'canvas-collapsed' : ''}`}>
+
       <div className="top-nav">
-        <header>
-          <h1>🖍️ Kids Coloring Studio</h1>
-        </header>
+        <header><h1>🖍️ Kids Coloring Studio</h1></header>
 
         <div className="header-controls">
           <div className="categories">
@@ -206,9 +307,8 @@ function Home() {
             ))}
             {isSearching && <span className="search-active-label">Results: {displayItems.length}</span>}
           </div>
-
           <div className="search-wrapper">
-            <input type="text" placeholder="🔍 Search (e.g. girl hero)..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
+            <input type="text" placeholder="🔍 Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
             {searchTerm && <button className="clear-search" onClick={() => setSearchTerm('')}>✖</button>}
             {suggestions.length > 0 && (
               <div className="search-suggestions">
@@ -225,9 +325,14 @@ function Home() {
         </div>
 
         <div className="gallery-toolbar">
-          <button className="toggle-canvas-btn" onClick={() => setIsCanvasCollapsed(!isCanvasCollapsed)}>
-            {isCanvasCollapsed ? '🖍️ Back to Coloring' : '🔍 Browse Gallery'}
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="toggle-canvas-btn" onClick={() => setIsCanvasCollapsed(!isCanvasCollapsed)}>
+              {isCanvasCollapsed ? '🖍️ Back to Coloring' : '🔍 Browse Gallery'}
+            </button>
+            <button className="select-all-btn" onClick={handleSelectAll}>
+              {isAllPageSelected ? '☑️ Unselect Page' : '⬜ Select Page'}
+            </button>
+          </div>
 
           {selectedPaths.length > 0 && (
             <div className="batch-actions">
@@ -237,7 +342,6 @@ function Home() {
               <button className="batch-download-btn" onClick={handleBatchDownload}>⬇️ Download</button>
             </div>
           )}
-
           <span className="item-count">Total: {displayItems.length}</span>
         </div>
 
@@ -277,39 +381,79 @@ function Home() {
         <>
           {isFullScreen && <button className="exit-fullscreen-btn" onClick={() => setIsFullScreen(false)}>✖ Exit Full Screen</button>}
 
-          <div className="palette-container">
-            <div className="palette">
-              {palette.map((c) => (
-                <button key={c} className={`swatch ${color === c ? 'active' : ''}`} style={{ backgroundColor: c }} onClick={() => setColor(c)} />
-              ))}
-              <button className="swatch custom" onClick={() => setShowPicker(!showPicker)}>🎨</button>
-            </div>
-            {showPicker && (
-              <div className="color-picker-popup">
-                <HexColorPicker color={color} onChange={setColor} />
-              </div>
-            )}
-          </div>
-
           <div className="studio-area">
             <button className="nav-arrow left" onClick={handlePrev} disabled={displayItems.length <= 1}>❮</button>
             <div className="canvas-wrapper">
-              {activeItem ? <ColoringCanvas ref={canvasRef} svgUrl={activeItem.path} currentColor={color} /> : <div className="empty-state">Select an image to start coloring</div>}
+              {activeItem ? (
+                <ColoringCanvas
+                  ref={canvasRef}
+                  svgUrl={activeItem.path}
+                  currentColor={color}
+                  isFullScreen={isFullScreen}
+                />
+              ) : <div className="empty-state">Select an image</div>}
             </div>
             <button className="nav-arrow right" onClick={handleNext} disabled={displayItems.length <= 1}>❯</button>
           </div>
 
+          {/* 🌟 调色板分组改造 */}
+          <div className="palette-container">
+            <div className="palette-wrapper">
+              {/* 第一行：预设颜色 */}
+              <div className="palette-group fixed">
+                {palette.map((c) => (
+                  <button key={c} className={`swatch ${color === c.toLowerCase() ? 'active' : ''}`} style={{ backgroundColor: c }} onClick={() => handleColorSelect(c)} />
+                ))}
+              </div>
+
+              {/* 第二行：自定义颜色 + 吸管 + 调色盘 */}
+              <div className="palette-group custom">
+                {customColors.map((c) => (
+                  <button key={c} className={`swatch ${color === c.toLowerCase() ? 'active' : ''}`} style={{ backgroundColor: c }} onClick={() => handleColorSelect(c)} title="My Custom Color" />
+                ))}
+                {isEyeDropperSupported && (
+                  <button className="swatch custom" onClick={handleEyeDropper} title="Pick from screen" style={{ fontSize: '1.2rem' }}>
+                    💧
+                  </button>
+                )}
+                <button className="swatch custom" onClick={() => setShowPicker(!showPicker)}>🎨</button>
+              </div>
+            </div>
+
+            {showPicker && (
+              <div className="color-picker-popup">
+                <HexColorPicker color={color} onChange={handleColorSelect} />
+              </div>
+            )}
+          </div>
+
           <div className="controls">
-            <button className="ctrl-btn save" onClick={handleSaveToGallery}>💾 Save to Gallery</button>
+            <button className="ctrl-btn save" onClick={handleSaveToGallery}>💾 Local Save</button>
+            <button className="ctrl-btn cloud-save" onClick={handleSaveToCloud}>☁️ Cloud Save</button>
+            <button className="ctrl-btn cloud-load" onClick={handleLoadFromCloud}>☁️ Cloud Load</button>
             <button className="ctrl-btn undo" onClick={handleUndo}>↩️ Undo</button>
             <button className="ctrl-btn redo" onClick={handleRedo}>↪️ Redo</button>
             <button className="ctrl-btn reset" onClick={handleReset}>🔄 Reset</button>
-            <button className="ctrl-btn print" onClick={handlePrintCurrent}>🖨️ Print Current</button>
+            <button className="ctrl-btn print" onClick={handlePrintCurrent}>🖨️ Print</button>
             {!isFullScreen && (
               <button className="ctrl-btn fullscreen" onClick={() => setIsFullScreen(true)}>⛶ Full Screen</button>
             )}
           </div>
         </>
+      )}
+
+      {showCodeModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>☁️ Saved to Cloud!</h3>
+            <p>Please save this extraction code.</p>
+            <div className="code-display"><span>{savedCode}</span></div>
+            <div className="modal-actions">
+              <button className="ctrl-btn copy-btn" onClick={copyToClipboard}>📋 Copy Code</button>
+              <button className="ctrl-btn close-btn" onClick={() => setShowCodeModal(false)}>Done</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

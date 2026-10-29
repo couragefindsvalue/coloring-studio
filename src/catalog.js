@@ -212,6 +212,10 @@ export const catalog = {
       "path": "/assets/others/Flower.svg"
     },
     {
+      "name": "Black Panther1",
+      "path": "/assets/others/black-panther1.svg"
+    },
+    {
       "name": "Bowser",
       "path": "/assets/others/bowser.svg"
     },

@@ -1,104 +1,146 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from './supabaseClient';
 import './App.css';
 
 function Gallery() {
-  const [artworks, setArtworks] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false); // 管理员状态
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('local');
+  const [localArtworks, setLocalArtworks] = useState([]);
+  const [cloudArtworks, setCloudArtworks] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // 页面加载时读取本地存储
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('my_coloring_gallery') || '[]');
-    setArtworks(saved);
+    fetchLocalArtworks();
+    fetchCloudArtworks();
   }, []);
 
-  // 管理员登录
-  const handleAdminLogin = () => {
-    // 🌟 你可以在这里修改密码，比如 "1234" 或 "mypassword"
-    const password = window.prompt("Enter Parent/Admin Password to unlock delete mode:");
+  const fetchLocalArtworks = () => {
+    const saved = JSON.parse(localStorage.getItem('my_coloring_gallery') || '[]');
+    setLocalArtworks(saved);
+  };
 
-    if (password === "admin123") {
+  const fetchCloudArtworks = async () => {
+    const { data, error } = await supabase
+      .from('cloud_artworks')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (!error && data) setCloudArtworks(data);
+  };
+
+  const handleAdminLogin = () => {
+    const password = window.prompt("Enter Parent/Admin Password:");
+    if (password === import.meta.env.VITE_ADMIN_PASSWORD) {
       setIsAdmin(true);
-      alert("🔓 Admin mode unlocked. You can now delete artworks.");
     } else if (password !== null) {
       alert("❌ Incorrect password.");
     }
   };
 
-  // 退出管理员模式
-  const handleAdminLogout = () => {
-    setIsAdmin(false);
+  const handleAdminLogout = () => setIsAdmin(false);
+
+  const copyCode = (code) => {
+    navigator.clipboard.writeText(code).then(() => alert(`✅ Code ${code} copied!`)).catch(() => alert("❌ Failed to copy."));
   };
 
-  // 删除单张作品
-  const handleDeleteArtwork = (id) => {
-    if (window.confirm("Are you sure you want to delete this masterpiece?")) {
-      const updatedArtworks = artworks.filter(art => art.id !== id);
-      localStorage.setItem('my_coloring_gallery', JSON.stringify(updatedArtworks));
-      setArtworks(updatedArtworks);
+  const handleDeleteLocal = (id) => {
+    if (window.confirm("Delete this local artwork?")) {
+      const updated = localArtworks.filter(art => art.id !== id);
+      localStorage.setItem('my_coloring_gallery', JSON.stringify(updated));
+      setLocalArtworks(updated);
     }
   };
 
-  // 清空所有作品
-  const clearGallery = () => {
-    if (window.confirm("Are you sure you want to delete ALL artworks? This cannot be undone.")) {
-      localStorage.removeItem('my_coloring_gallery');
-      setArtworks([]);
+  const handleDeleteCloud = async (code) => {
+    if (!window.confirm(`Permanently delete cloud artwork with code ${code}?`)) return;
+    try {
+      const { error: dbError } = await supabase.from('cloud_artworks').delete().eq('code', code);
+      if (dbError) throw dbError;
+      const { error: storageError } = await supabase.storage.from('artworks').remove([`${code}.png`]);
+      if (storageError) throw storageError;
+      setCloudArtworks(prev => prev.filter(art => art.code !== code));
+      alert("✅ Cloud artwork deleted.");
+    } catch (error) {
+      alert("❌ Error deleting cloud artwork.");
     }
+  };
+
+  // 🌟 核心修改：统一处理跳转加载（传递 state 给 Home.jsx）
+  const handleLoadToHome = (imageSource) => {
+    navigate('/', { state: { loadedImage: imageSource } });
   };
 
   return (
     <div className="page-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>🎨 My Masterpieces</h2>
-
-        {/* 管理员控制按钮 */}
+        <h2>🎨 Art Gallery</h2>
         {isAdmin ? (
-          <button className="admin-btn logout" onClick={handleAdminLogout}>
-            🔒 Exit Admin Mode
-          </button>
+          <button className="admin-btn logout" onClick={handleAdminLogout}>🔒 Exit Admin</button>
         ) : (
-          <button className="admin-btn login" onClick={handleAdminLogin}>
-            👨‍👩‍👧 Parent Admin
-          </button>
+          <button className="admin-btn login" onClick={handleAdminLogin}>👨‍👩‍👧 Parent Admin</button>
         )}
       </div>
 
-      {artworks.length === 0 ? (
-        <div className="empty-gallery">
-          <p>No artworks yet. Go color something!</p>
-          <Link to="/" className="link-btn">Go to Studio</Link>
+      <div className="gallery-tabs">
+        <button className={activeTab === 'local' ? 'active' : ''} onClick={() => setActiveTab('local')}>
+          💾 Local Gallery ({localArtworks.length})
+        </button>
+        <button className={activeTab === 'cloud' ? 'active' : ''} onClick={() => setActiveTab('cloud')}>
+          ☁️ Cloud Gallery ({cloudArtworks.length})
+        </button>
+      </div>
+
+      {/* 本地画廊 */}
+      {activeTab === 'local' && (
+        <div className="gallery-grid">
+          {localArtworks.map(art => (
+            <div key={art.id} className="gallery-card">
+              <button className="delete-artwork-btn" onClick={() => handleDeleteLocal(art.id)}>✖</button>
+              <img
+                src={art.image}
+                alt="Local Artwork"
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleLoadToHome(art.image)}
+                title="Click to continue coloring"
+              />
+              <span className="art-date">{art.date}</span>
+            </div>
+          ))}
         </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <span style={{ color: '#666', fontWeight: 'bold' }}>{artworks.length} artworks saved</span>
-            {/* 只有管理员才能看到清空按钮 */}
-            {isAdmin && (
-              <button className="clear-gallery-btn" onClick={clearGallery}>🗑️ Clear All</button>
-            )}
-          </div>
+      )}
 
-          <div className="gallery-grid">
-            {artworks.map(art => (
-              <div key={art.id} className="gallery-card">
-                {/* 只有管理员才能看到单张删除按钮 */}
-                {isAdmin && (
-                  <button
-                    className="delete-artwork-btn"
-                    onClick={() => handleDeleteArtwork(art.id)}
-                    title="Delete this artwork"
-                  >
-                    ✖
-                  </button>
-                )}
+      {/* 云端画廊 */}
+      {activeTab === 'cloud' && (
+        <div className="gallery-grid">
+          {cloudArtworks.map(art => (
+            <div key={art.id} className="gallery-card">
+              {isAdmin && (
+                <button className="delete-artwork-btn" onClick={() => handleDeleteCloud(art.code)}>✖</button>
+              )}
 
-                <img src={art.image} alt="Artwork" />
-                <span className="art-date">{art.date}</span>
+              {/* 🌟 云端图片也可以点击加载了 */}
+              <img
+                src={art.image_url}
+                alt="Cloud Artwork"
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleLoadToHome(art.image_url)}
+                title="Click to continue coloring"
+              />
+
+              <div className="cloud-card-footer">
+                <span className="code-label">{art.code}</span>
+                <button className="copy-code-btn" onClick={() => copyCode(art.code)} title="Copy Code">📋</button>
               </div>
-            ))}
-          </div>
-        </>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'local' && localArtworks.length === 0 && (
+        <p style={{ textAlign: 'center', padding: '40px' }}>No local artworks. <Link to="/">Go color something!</Link></p>
+      )}
+      {activeTab === 'cloud' && cloudArtworks.length === 0 && (
+        <p style={{ textAlign: 'center', padding: '40px' }}>No cloud artworks found.</p>
       )}
     </div>
   );

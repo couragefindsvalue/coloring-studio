@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Home from './Home';
@@ -11,7 +10,6 @@ function App() {
   return (
     <Router>
       <div className="site-wrapper">
-        {/* 全局顶部导航栏 */}
         <nav className="navbar">
           <div className="nav-brand">🖍️ Coloring Studio</div>
           <div className="nav-links">
@@ -22,7 +20,6 @@ function App() {
           </div>
         </nav>
 
-        {/* 页面内容渲染区 */}
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/gallery" element={<Gallery />} />

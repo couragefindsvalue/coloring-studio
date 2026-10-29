@@ -37,6 +37,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+backup_v1_perfect/
 
 # 临时文件 (Potrace 转换产生的)
 temp.pbm
@@ -54,3 +55,4 @@ temp.pbm
 # ==========================================
 .DS_Store
 Thumbs.db
+.env
