@@ -212,6 +212,10 @@ export const catalog = {
       "path": "/assets/others/Flower.svg"
     },
     {
+      "name": "Artillery",
+      "path": "/assets/others/artillery.svg"
+    },
+    {
       "name": "Black Panther1",
       "path": "/assets/others/black-panther1.svg"
     },
@@ -226,6 +230,14 @@ export const catalog = {
     {
       "name": "Girl2",
       "path": "/assets/others/girl2.svg"
+    },
+    {
+      "name": "Gun",
+      "path": "/assets/others/gun.svg"
+    },
+    {
+      "name": "Gun2",
+      "path": "/assets/others/gun2.svg"
     },
     {
       "name": "Hockey Boy1",
@@ -360,6 +372,156 @@ export const catalog = {
       "path": "/assets/ship/warship6.svg"
     }
   ],
+  "superheros": [
+    {
+      "name": "Avergers1",
+      "path": "/assets/superheros/Avergers1.svg"
+    },
+    {
+      "name": "Avergers2",
+      "path": "/assets/superheros/Avergers2.svg"
+    },
+    {
+      "name": "Avergers3",
+      "path": "/assets/superheros/Avergers3.svg"
+    },
+    {
+      "name": "Avergers4",
+      "path": "/assets/superheros/Avergers4.svg"
+    },
+    {
+      "name": "Avergers5",
+      "path": "/assets/superheros/Avergers5.svg"
+    },
+    {
+      "name": "Avergers6",
+      "path": "/assets/superheros/Avergers6.svg"
+    },
+    {
+      "name": "Avergers7",
+      "path": "/assets/superheros/Avergers7.svg"
+    },
+    {
+      "name": "Avergers8",
+      "path": "/assets/superheros/Avergers8.svg"
+    },
+    {
+      "name": "Avergers9",
+      "path": "/assets/superheros/Avergers9.svg"
+    },
+    {
+      "name": "Captianamerican1",
+      "path": "/assets/superheros/CaptianAmerican1.svg"
+    },
+    {
+      "name": "Ironman1",
+      "path": "/assets/superheros/Ironman1.svg"
+    },
+    {
+      "name": "Ironman10",
+      "path": "/assets/superheros/Ironman10.svg"
+    },
+    {
+      "name": "Ironman11",
+      "path": "/assets/superheros/Ironman11.svg"
+    },
+    {
+      "name": "Ironman12",
+      "path": "/assets/superheros/Ironman12.svg"
+    },
+    {
+      "name": "Ironman13",
+      "path": "/assets/superheros/Ironman13.svg"
+    },
+    {
+      "name": "Ironman14",
+      "path": "/assets/superheros/Ironman14.svg"
+    },
+    {
+      "name": "Ironman15",
+      "path": "/assets/superheros/Ironman15.svg"
+    },
+    {
+      "name": "Ironman16",
+      "path": "/assets/superheros/Ironman16.svg"
+    },
+    {
+      "name": "Ironman17",
+      "path": "/assets/superheros/Ironman17.svg"
+    },
+    {
+      "name": "Ironman18",
+      "path": "/assets/superheros/Ironman18.svg"
+    },
+    {
+      "name": "Ironman19",
+      "path": "/assets/superheros/Ironman19.svg"
+    },
+    {
+      "name": "Ironman2",
+      "path": "/assets/superheros/Ironman2.svg"
+    },
+    {
+      "name": "Ironman20",
+      "path": "/assets/superheros/Ironman20.svg"
+    },
+    {
+      "name": "Ironman21",
+      "path": "/assets/superheros/Ironman21.svg"
+    },
+    {
+      "name": "Ironman22",
+      "path": "/assets/superheros/Ironman22.svg"
+    },
+    {
+      "name": "Ironman23",
+      "path": "/assets/superheros/Ironman23.svg"
+    },
+    {
+      "name": "Ironman3",
+      "path": "/assets/superheros/Ironman3.svg"
+    },
+    {
+      "name": "Ironman4",
+      "path": "/assets/superheros/Ironman4.svg"
+    },
+    {
+      "name": "Ironman5",
+      "path": "/assets/superheros/Ironman5.svg"
+    },
+    {
+      "name": "Ironman6",
+      "path": "/assets/superheros/Ironman6.svg"
+    },
+    {
+      "name": "Ironman7",
+      "path": "/assets/superheros/Ironman7.svg"
+    },
+    {
+      "name": "Ironman8",
+      "path": "/assets/superheros/Ironman8.svg"
+    },
+    {
+      "name": "Ironman9",
+      "path": "/assets/superheros/Ironman9.svg"
+    },
+    {
+      "name": "Thorn1",
+      "path": "/assets/superheros/Thorn1.svg"
+    },
+    {
+      "name": "Thorn2",
+      "path": "/assets/superheros/Thorn2.svg"
+    },
+    {
+      "name": "Hulk1",
+      "path": "/assets/superheros/hulk1.svg"
+    },
+    {
+      "name": "Ironman24",
+      "path": "/assets/superheros/ironman24.svg"
+    }
+  ],
   "vehicles": [
     {
       "name": "Ambulance",
@@ -468,20 +630,6 @@ export const catalog = {
     {
       "name": "Troop Carrier",
       "path": "/assets/vehicles/troop-carrier.svg"
-    }
-  ],
-  "weapon": [
-    {
-      "name": "Artillery",
-      "path": "/assets/weapon/artillery.svg"
-    },
-    {
-      "name": "Gun",
-      "path": "/assets/weapon/gun.svg"
-    },
-    {
-      "name": "Gun2",
-      "path": "/assets/weapon/gun2.svg"
     }
   ]
 };
