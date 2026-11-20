@@ -518,6 +518,10 @@ export const catalog = {
       "path": "/assets/superheros/hulk1.svg"
     },
     {
+      "name": "Iron Man Mark 50",
+      "path": "/assets/superheros/iron-man-mark-50.svg"
+    },
+    {
       "name": "Ironman24",
       "path": "/assets/superheros/ironman24.svg"
     }
